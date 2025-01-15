@@ -138,7 +138,11 @@ impl WebSocketClient {
     async fn send_ping(&mut self, ws_stream: &mut WebSocketStream<MaybeTlsStream<TcpStream>>) {
         let msg = serde_json::json!({
             "id": Uuid::new_v4().to_string(),
-            "origin_action": "PING".to_string(),
+            "action": "PING".to_string(),
+            "version": match self.node_type {
+                    NodeType::Desktop => "4.30.0".to_string(),
+                    _ => "4.26.2".to_string(),
+                },
             "data": HashMap::<String, serde_json::Value>::new()
         });
         ws_stream
