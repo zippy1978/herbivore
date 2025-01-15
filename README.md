@@ -29,7 +29,7 @@ Options:
 ## DietPi setup
 
 ```bash
-sudo apt install build-essential
+sudo apt install build-essential libssl-dev pkg-config
 curl https://sh.rustup.rs -sSf | sh
 cd /root
 git clone https://github.com/zippy1978/herbivore.git
@@ -54,7 +54,7 @@ After=network.target
 
 [Service]
 Type=simple
-ExecStart=/usr/local/bin/herbivore --user-id <userid> --node-type <nodetype>
+ExecStart=/root/.cargo/bin/herbivore --user-id <userid> --node-type <nodetype> --log-file /var/log/herbivore.log
 WorkingDirectory=/root/herbivore
 Restart=always
 User=root

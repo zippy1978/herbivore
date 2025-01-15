@@ -7,7 +7,9 @@ use reqwest::{
 };
 use serde::{Deserialize, Serialize};
 use std::{
-    collections::HashMap, fmt::Display, time::{SystemTime, UNIX_EPOCH}
+    collections::HashMap,
+    fmt::Display,
+    time::{SystemTime, UNIX_EPOCH},
 };
 use tokio::net::TcpStream;
 use tokio_tungstenite::{connect_async, tungstenite::Message, MaybeTlsStream, WebSocketStream};
@@ -38,7 +40,6 @@ pub enum NodeType {
 }
 
 impl NodeType {
-
     pub fn from_str(s: &str) -> Self {
         match s {
             "1x" => NodeType::Extension,
@@ -51,11 +52,15 @@ impl NodeType {
 
 impl Display for NodeType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", match self {
-            NodeType::Extension => "1x",
-            NodeType::Desktop => "2x",
-            NodeType::CommunityExtension => "1.25x",
-        })
+        write!(
+            f,
+            "{:?}",
+            match self {
+                NodeType::Extension => "1x",
+                NodeType::Desktop => "2x",
+                NodeType::CommunityExtension => "1.25x",
+            }
+        )
     }
 }
 
@@ -130,6 +135,19 @@ impl WebSocketClient {
         }
     }
 
+    async fn send_ping(&mut self, ws_stream: &mut WebSocketStream<MaybeTlsStream<TcpStream>>) {
+        let msg = serde_json::json!({
+            "id": Uuid::new_v4().to_string(),
+            "origin_action": "PING".to_string(),
+            "data": HashMap::<String, serde_json::Value>::new()
+        });
+        ws_stream
+            .send(Message::Text(msg.to_string().into()))
+            .await
+            .unwrap();
+        info!("Sent ping: {}", msg.to_string());
+    }
+
     async fn process_response(response: Response) -> HashMap<String, serde_json::Value> {
         let mut result = HashMap::new();
 
@@ -168,6 +186,7 @@ impl WebSocketClient {
     pub async fn start(&mut self) {
         info!("Starting WebSocket client...");
         info!("Node type: {}", self.node_type);
+
         loop {
             match self.connect().await {
                 Ok(mut ws_stream) => {
@@ -177,7 +196,27 @@ impl WebSocketClient {
                     }
 
                     info!("Waiting for messages...");
-                    self.handle_messages(&mut ws_stream).await;
+
+                    let mut ping_interval =
+                        tokio::time::interval(tokio::time::Duration::from_secs(60));
+
+                    loop {
+                        tokio::select! {
+                            _ = ping_interval.tick() => {
+                                self.send_ping(&mut ws_stream).await;
+                            }
+                            msg = ws_stream.next() => {
+                                match msg {
+                                    Some(Ok(msg)) => self.handle_message(&mut ws_stream, msg).await,
+                                    Some(Err(e)) => {
+                                        error!("Error receiving message: {}", e);
+                                        break;
+                                    }
+                                    None => break,
+                                }
+                            }
+                        }
+                    }
                 }
                 Err(e) => {
                     error!("WebSocket connection error: {}", e);
@@ -204,50 +243,32 @@ impl WebSocketClient {
             .send(Message::Text(response.to_string().into()))
             .await
             .unwrap();
+
+        info!("Sent response: {}", response.to_string());
     }
 
-    async fn handle_messages(
+    async fn handle_message(
         &mut self,
         ws_stream: &mut WebSocketStream<MaybeTlsStream<TcpStream>>,
+        msg: Message,
     ) {
-        while let Some(msg) = ws_stream.next().await {
-            match msg {
-                Ok(msg) => {
-                    if let Message::Text(text) = msg {
-                        info!("Received message: {}", &text.to_string());
-                        let message: WebSocketMessage =
-                            serde_json::from_str(&text.to_string()).unwrap();
-                        match message.action.as_str() {
-                            "HTTP_REQUEST" => {
-                                let result = Self::perform_http_request(&message.data).await;
-                                if let Some(result) = result {
-                                    self.send_response(
-                                        ws_stream,
-                                        message.id,
-                                        message.action,
-                                        result,
-                                    )
-                                    .await;
-                                }
-                            }
-                            "PING" => {
-                                self.send_response(
-                                    ws_stream,
-                                    message.id,
-                                    message.action,
-                                    HashMap::new(),
-                                )
-                                .await;
-                            }
-                            _ => {
-                                // Do nothing
-                            }
-                        }
+        if let Message::Text(text) = msg {
+            info!("Received message: {}", &text.to_string());
+            let message: WebSocketMessage = serde_json::from_str(&text.to_string()).unwrap();
+            match message.action.as_str() {
+                "HTTP_REQUEST" => {
+                    let result = Self::perform_http_request(&message.data).await;
+                    if let Some(result) = result {
+                        self.send_response(ws_stream, message.id, message.action, result)
+                            .await;
                     }
                 }
-                Err(e) => {
-                    error!("Error receiving message: {}", e);
-                    break;
+                "PONG" => {
+                    self.send_response(ws_stream, message.id, message.action, HashMap::new())
+                        .await;
+                }
+                _ => {
+                    // Do nothing
                 }
             }
         }
