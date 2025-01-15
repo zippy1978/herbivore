@@ -1,30 +1,40 @@
 # Herbivore
 
-Unofficial getgrass.io client
+Unofficial Rust client for getgrass.io
 
 ## Prerequisites
 
-- Python 3.10+
-- Poetry
+- Rust 1.70+
 
 ## Installation
 
 ```bash
-poetry install
+git clone https://github.com/zippy1978/herbivore.git
+cd herbivore
+cargo install --path .
 ```
 
 ## Usage
 
 ```bash
-poetry run herbivore --userid <userid> --nodetype <nodetype>
+Usage: herbivore [OPTIONS] --user-id <USER_ID>
+
+Options:
+  -u, --user-id <USER_ID>      
+  -n, --node-type <NODE_TYPE>  [default: 1.25x] [possible values: 1x, 2x, 1.25x]
+  -h, --help                   Print help
+  -V, --version                Print version
 ```
 
 ## DietPi setup
 
 ```bash
-sudo apt install python3-pip python3-venv build-essential
-pip install poetry
-poetry install
+sudo apt install build-essential
+curl https://sh.rustup.rs -sSf | sh
+cd /root
+git clone https://github.com/zippy1978/herbivore.git
+cd herbivore
+cargo install --path .
 ```
 
 Run as service:
@@ -32,8 +42,6 @@ Run as service:
 Do as root:
 
 ```bash
-cd /root
-git clone https://github.com/zippy1978/herbivore.git
 nano /etc/systemd/system/herbivore.service
 ```
 
@@ -46,7 +54,7 @@ After=network.target
 
 [Service]
 Type=simple
-ExecStart=/usr/local/bin/poetry run herbivore --userid <userid> --nodetype <nodetype>
+ExecStart=/usr/local/bin/herbivore --user-id <userid> --node-type <nodetype>
 WorkingDirectory=/root/herbivore
 Restart=always
 User=root
