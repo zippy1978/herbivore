@@ -311,8 +311,9 @@ impl WebSocketClient {
                 },
                 "extension_id": match self.node_type {
                     NodeType::Desktop => None,
-                    NodeType::Extension => Some("lkbnfiajjmbhnfledhphioinpickokdi".to_string()),
-                    NodeType::CommunityExtension => Some("ilehaonighjijnmpnagapkhpcdbhclfg".to_string()),
+                    NodeType::Extension => Some("ilehaonighjijnmpnagapkhpcdbhclfg".to_string()),
+                    NodeType::CommunityExtension => Some("lkbnfiajjmbhnfledhphioinpickokdi".to_string()),
+                    
                 },
             }
         });
